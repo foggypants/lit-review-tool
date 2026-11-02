@@ -12,7 +12,7 @@ from anthropic import Anthropic
 from pypdf import PdfReader
 
 DB_PATH = "literature_review.db"
-MODEL = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-5")
+MODEL = os.getenv("CLAUDE_MODEL", "claude-3-5-haiku-20241022")
 NUM_PAPERS = 5
 MIN_PAPERS = 2
 MIN_CHARS = 200
