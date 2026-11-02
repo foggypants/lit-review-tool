@@ -2,6 +2,7 @@ import json
 import os
 import re
 import sqlite3
+import time
 import unicodedata
 from contextlib import closing
 from datetime import datetime, timezone
@@ -13,7 +14,7 @@ from google.genai import types
 from pypdf import PdfReader
 
 DB_PATH = "literature_review.db"
-MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
+MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-lite-latest")
 NUM_PAPERS = 5
 MIN_PAPERS = 2
 MIN_CHARS = 200
@@ -88,17 +89,26 @@ def extract(client, text: str) -> dict:
         system_instruction=SYSTEM_PROMPT,
         response_mime_type="application/json",
         max_output_tokens=4096,
-        thinking_config=types.ThinkingConfig(thinking_budget=0),
     )
     last_error = None
-    for _ in range(2):
-        try:
-            resp = client.models.generate_content(
-                model=MODEL, contents=f"<paper>\n{text}\n</paper>", config=config
-            )
-            return parse_response(resp.text)
-        except Exception as e:
-            last_error = e
+    models_to_try = [MODEL, "gemini-flash-lite-latest", "gemini-flash-latest"]
+    seen = set()
+    candidate_models = [m for m in models_to_try if m and not (m in seen or seen.add(m))]
+
+    for model_name in candidate_models:
+        for _ in range(2):
+            try:
+                resp = client.models.generate_content(
+                    model=model_name, contents=f"<paper>\n{text}\n</paper>", config=config
+                )
+                return parse_response(resp.text)
+            except Exception as e:
+                last_error = e
+                err_str = str(e).lower()
+                if "503" in err_str or "unavailable" in err_str or "high demand" in err_str:
+                    time.sleep(2)
+                    continue
+                break
     raise RuntimeError(f"Extraction failed: {last_error}")
 
 
