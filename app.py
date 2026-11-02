@@ -77,10 +77,14 @@ def parse_response(raw: str) -> dict:
 
 
 def get_api_key():
+    val = None
     try:
-        return st.secrets["GEMINI_API_KEY"]
+        val = st.secrets["GEMINI_API_KEY"]
     except Exception:
-        return os.getenv("GEMINI_API_KEY")
+        val = os.getenv("GEMINI_API_KEY")
+    if val:
+        return str(val).strip().strip('"').strip("'")
+    return None
 
 
 def extract(client, text: str) -> dict:
