@@ -5,3 +5,4 @@ __pycache__/
 literature_review.db
 .env
 .DS_Store
+.streamlit/
