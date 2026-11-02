@@ -6,13 +6,14 @@ import unicodedata
 from contextlib import closing
 from datetime import datetime, timezone
 
-import google.generativeai as genai
 import pandas as pd
 import streamlit as st
+from google import genai
+from google.genai import types
 from pypdf import PdfReader
 
 DB_PATH = "literature_review.db"
-MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 NUM_PAPERS = 5
 MIN_PAPERS = 2
 MIN_CHARS = 200
@@ -75,15 +76,26 @@ def parse_response(raw: str) -> dict:
     return {k: str(data[k]).strip() or NOT_STATED for k in FIELDS}
 
 
-def extract(text: str) -> dict:
-    last_error = None
-    model = genai.GenerativeModel(
-        model_name=MODEL,
+def get_api_key():
+    try:
+        return st.secrets["GEMINI_API_KEY"]
+    except Exception:
+        return os.getenv("GEMINI_API_KEY")
+
+
+def extract(client, text: str) -> dict:
+    config = types.GenerateContentConfig(
         system_instruction=SYSTEM_PROMPT,
+        response_mime_type="application/json",
+        max_output_tokens=4096,
+        thinking_config=types.ThinkingConfig(thinking_budget=0),
     )
+    last_error = None
     for _ in range(2):
         try:
-            resp = model.generate_content(f"<paper>\n{text}\n</paper>")
+            resp = client.models.generate_content(
+                model=MODEL, contents=f"<paper>\n{text}\n</paper>", config=config
+            )
             return parse_response(resp.text)
         except Exception as e:
             last_error = e
@@ -122,11 +134,11 @@ def load_runs() -> pd.DataFrame:
 
 
 def run_pipeline(raw_inputs: dict):
-    api_key = os.getenv("GEMINI_API_KEY")
+    api_key = get_api_key()
     if not api_key:
         st.error("GEMINI_API_KEY is not set. Add it in Streamlit Cloud Secrets or export it locally.")
         return
-    genai.configure(api_key=api_key)
+    client = genai.Client(api_key=api_key)
     errors, inputs = [], {}
 
     with st.status("Stage 1/3: Ingestion & sanitization", expanded=False) as s:
@@ -150,7 +162,7 @@ def run_pipeline(raw_inputs: dict):
     with st.status("Stage 2/3: AI extraction", expanded=False) as s:
         for i, text in inputs.items():
             try:
-                rows.append({"paper": f"Paper {i}", **extract(text)})
+                rows.append({"paper": f"Paper {i}", **extract(client, text)})
             except Exception as e:
                 errors.append(f"Paper {i}: {e}")
         s.update(label=f"Stage 2/3: {len(rows)} extracted", state="complete")
