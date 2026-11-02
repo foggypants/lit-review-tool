@@ -13,7 +13,7 @@ from google.genai import types
 from pypdf import PdfReader
 
 DB_PATH = "literature_review.db"
-MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
 NUM_PAPERS = 5
 MIN_PAPERS = 2
 MIN_CHARS = 200
@@ -77,14 +77,10 @@ def parse_response(raw: str) -> dict:
 
 
 def get_api_key():
-    val = None
     try:
-        val = st.secrets["GEMINI_API_KEY"]
+        return st.secrets["GEMINI_API_KEY"]
     except Exception:
-        val = os.getenv("GEMINI_API_KEY")
-    if val:
-        return str(val).strip().strip('"').strip("'")
-    return None
+        return os.getenv("GEMINI_API_KEY")
 
 
 def extract(client, text: str) -> dict:
